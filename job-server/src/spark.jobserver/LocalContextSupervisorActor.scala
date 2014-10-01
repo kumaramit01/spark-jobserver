@@ -17,7 +17,7 @@ object ContextSupervisor {
   // Messages/actions
   case object AddContextsFromConfig // Start up initial contexts
   case object ListContexts
-  case class AddContext(name: String, contextConfig: Config)
+  case class AddContext(name: String, callbackUrl: Option[String], contextConfig: Config)
   case class GetAdHocContext(classPath: String, contextConfig: Config)
   case class GetContext(name: String) // returns JobManager, JobResultActor
   case class GetResultActor(name: String)  // returns JobResultActor
@@ -87,7 +87,7 @@ class LocalContextSupervisorActor(dao: JobDAO) extends InstrumentedActor {
     case ListContexts =>
       sender ! contexts.keys.toSeq
 
-    case AddContext(name, contextConfig) =>
+    case AddContext(name, callbackUrlOpt, contextConfig) =>
       val originator = sender // Sender is a mutable reference, must capture in immutable val
       val mergedConfig = contextConfig.withFallback(defaultContextConfig)
       if (contexts contains name) {

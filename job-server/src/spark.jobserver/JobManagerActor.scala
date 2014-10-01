@@ -16,7 +16,7 @@ import spark.jobserver.util.{ContextURLClassLoader, SparkJobUtils}
 object JobManagerActor {
   // Messages
   case object Initialize
-  case class StartJob(appName: String, classPath: String, config: Config,
+  case class StartJob(appName: String, classPath: String, callbackUrl: Option[String], config: Config,
                       subscribedEvents: Set[Class[_]])
 
   // Results/Data
@@ -90,6 +90,9 @@ class JobManagerActor(dao: JobDAO,
   private val statusActor = context.actorOf(Props(classOf[JobStatusActor], dao), "status-actor")
   protected val resultActor = resultActorRef.getOrElse(context.actorOf(Props[JobResultActor], "result-actor"))
 
+  private val callbackActor = context.actorOf(Props(classOf[CallbackActor], dao),"callback-actor")
+  private val additionalCallbackEvents= Set(classOf[JobFinished], classOf[SparkJobInvalid])
+
   override def postStop() {
     logger.info("Shutting down SparkContext {}", contextName)
     Option(sparkContext).foreach(_.stop())
@@ -112,12 +115,13 @@ class JobManagerActor(dao: JobDAO,
           self ! PoisonPill
       }
 
-    case StartJob(appName, classPath, jobConfig, events) =>
-      startJobInternal(appName, classPath, jobConfig, events, sparkContext, sparkEnv, rddManagerActor)
+    case StartJob(appName, classPath, callbackUrl, jobConfig, events) =>
+      startJobInternal(appName, classPath, callbackUrl, jobConfig, events, sparkContext, sparkEnv, rddManagerActor)
   }
 
   def startJobInternal(appName: String,
                        classPath: String,
+                       callbackUrl: Option[String],
                        jobConfig: Config,
                        events: Set[Class[_]],
                        sparkContext: SparkContext,
@@ -153,8 +157,11 @@ class JobManagerActor(dao: JobDAO,
       // Automatically subscribe the sender to events so it starts getting them right away
       resultActor ! Subscribe(jobId, sender, events)
       statusActor ! Subscribe(jobId, sender, events)
+      // notify the callback actor about additional events as well
+      val callbackEvents = events ++ additionalCallbackEvents
+      statusActor ! Subscribe(jobId, callbackActor, callbackEvents)
 
-      val jobInfo = JobInfo(jobId, contextName, jarInfo, classPath, DateTime.now(), None, None)
+      val jobInfo = JobInfo(jobId, contextName, jarInfo, classPath, DateTime.now(), callbackUrl, None, None)
       future =
         Option(getJobFuture(jobJarInfo, jobInfo, jobConfig, sender, sparkContext, sparkEnv,
                             rddManagerActor))
