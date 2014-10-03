@@ -111,13 +111,11 @@ class JobStatusActor(jobDao: JobDAO) extends InstrumentedActor with YammerMetric
   }
 
   private def publishMessage(jobId: String, message: StatusMessage) {
-    logger.info("Came here to publish {} ", message)
     for (
       jobSubscribers <- subscribers.get(jobId);
       receivers <- jobSubscribers.get(message.getClass);
       receiver <- receivers
     ) {
-      logger.info("publishing message to {} message {} ", receiver: Any,  message.toString )
       receiver ! message
     }
   }
