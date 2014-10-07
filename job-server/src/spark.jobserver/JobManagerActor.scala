@@ -91,7 +91,8 @@ class JobManagerActor(dao: JobDAO,
   protected val resultActor = resultActorRef.getOrElse(context.actorOf(Props[JobResultActor], "result-actor"))
 
   private val callbackActor = context.actorOf(Props(classOf[CallbackActor], dao),"callback-actor")
-  private val additionalCallbackEvents= Set(classOf[JobFinished], classOf[SparkJobInvalid])
+  private val additionalCallbackEvents= Set(classOf[JobFinished], classOf[SparkJobInvalid], classOf[NoJobSlotsAvailable])
+  //, NoSuchJobId.getClass, NoSuchApplication.getClass, NoSuchClass.getClass, JobInitAlready.getClass
 
   override def postStop() {
     logger.info("Shutting down SparkContext {}", contextName)
